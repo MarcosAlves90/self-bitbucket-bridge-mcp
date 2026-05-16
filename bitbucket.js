@@ -5,11 +5,11 @@ import { dirname, join } from "node:path";
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), ".env") });
 
-const { BITBUCKET_USERNAME, BITBUCKET_APP_PASSWORD, BITBUCKET_WORKSPACE } = process.env;
+const { BITBUCKET_EMAIL, BITBUCKET_TOKEN, BITBUCKET_WORKSPACE } = process.env;
 
 const api = axios.create({
   baseURL: "https://api.bitbucket.org/2.0",
-  auth: { username: BITBUCKET_USERNAME, password: BITBUCKET_APP_PASSWORD },
+  auth: { username: BITBUCKET_EMAIL, password: BITBUCKET_TOKEN },
   headers: { Accept: "application/json", "Content-Type": "application/json" },
 });
 
