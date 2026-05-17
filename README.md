@@ -29,13 +29,29 @@ cp .env.example .env
 
 **.env**
 ```
-BITBUCKET_USERNAME=your-username
-BITBUCKET_APP_PASSWORD=ATBxxxxx
+BITBUCKET_EMAIL=your-atlassian-account-email
+BITBUCKET_TOKEN=ATATTxxxxx
 BITBUCKET_WORKSPACE=your-workspace-slug
 BITBUCKET_DEFAULT_REPO=your-default-repo-slug   # optional
 ```
 
-Generate an app password at **Bitbucket Settings → Personal settings → App passwords**. Required scopes: `Repositories:Read`, `Pull requests:Read/Write`, `Pipelines:Read`.
+### Generating an API Token
+
+As of September 9, 2025, Bitbucket no longer supports App Passwords. Authentication is done via **Atlassian API tokens with scopes**.
+
+1. Go to [Atlassian Account → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Click **Create API token**
+3. Select the following scopes:
+
+| Scope | Required for |
+|---|---|
+| `read:repository:bitbucket` | Repos, branches, commits |
+| `read:pullrequest:bitbucket` | Listing and viewing PRs and comments |
+| `write:pullrequest:bitbucket` | Creating, approving, merging PRs and comments |
+| `read:pipeline:bitbucket` | Listing and viewing pipelines |
+
+4. Copy the generated token and set it as `BITBUCKET_TOKEN` in your `.env`
+5. Set `BITBUCKET_EMAIL` to the Atlassian account email used to generate the token
 
 ## MCP Client Config
 
