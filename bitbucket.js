@@ -1,9 +1,4 @@
 import axios from "axios";
-import dotenv from "dotenv";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), ".env") });
 
 const { BITBUCKET_EMAIL, BITBUCKET_TOKEN, BITBUCKET_WORKSPACE } = process.env;
 
@@ -13,13 +8,21 @@ const api = axios.create({
   headers: { Accept: "application/json", "Content-Type": "application/json" },
 });
 
-export function resolveRepo(repoParam) {
+function resolveRepo(repoParam) {
   const repo = repoParam || process.env.BITBUCKET_DEFAULT_REPO;
   if (!repo) throw new Error("repo parameter is required (or set BITBUCKET_DEFAULT_REPO)");
   return repo;
 }
 
-export function filterRepo(raw) {
+function paginated(data, filter) {
+  return {
+    values: data.values.map(filter),
+    size: data.size,
+    next: data.next ?? null,
+  };
+}
+
+function filterRepo(raw) {
   return {
     slug: raw.slug,
     full_name: raw.full_name,
@@ -29,11 +32,11 @@ export function filterRepo(raw) {
   };
 }
 
-export function filterBranch(raw) {
+function filterBranch(raw) {
   return { name: raw.name, commit_hash: raw.target?.hash };
 }
 
-export function filterCommit(raw) {
+function filterCommit(raw) {
   return {
     hash: raw.hash,
     message: raw.message,
@@ -42,7 +45,7 @@ export function filterCommit(raw) {
   };
 }
 
-export function filterPR(raw) {
+function filterPR(raw) {
   return {
     id: raw.id,
     title: raw.title,
@@ -55,7 +58,7 @@ export function filterPR(raw) {
   };
 }
 
-export function filterPipeline(raw) {
+function filterPipeline(raw) {
   return {
     uuid: raw.uuid,
     state: raw.state?.name,
@@ -65,7 +68,7 @@ export function filterPipeline(raw) {
   };
 }
 
-export function filterComment(raw) {
+function filterComment(raw) {
   return {
     id: raw.id,
     content: raw.content?.raw,
@@ -75,133 +78,93 @@ export function filterComment(raw) {
   };
 }
 
+function repoPath(repo) {
+  return `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}`;
+}
+
 export async function listRepositories(page = 1) {
   const res = await api.get(`/repositories/${BITBUCKET_WORKSPACE}`, {
     params: { pagelen: 50, page },
   });
-  return {
-    values: res.data.values.map(filterRepo),
-    size: res.data.size,
-    next: res.data.next ?? null,
-  };
+  return paginated(res.data, filterRepo);
 }
 
 export async function listBranches(repo, page = 1) {
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/refs/branches`,
-    { params: { pagelen: 50, page } }
-  );
-  return {
-    values: res.data.values.map(filterBranch),
-    size: res.data.size,
-    next: res.data.next ?? null,
-  };
+  const res = await api.get(`${repoPath(repo)}/refs/branches`, { params: { pagelen: 50, page } });
+  return paginated(res.data, filterBranch);
 }
 
 export async function listCommits(repo, branch, page = 1) {
   const params = { pagelen: 50, page };
   if (branch) params.include = branch;
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/commits`,
-    { params }
-  );
-  return {
-    values: res.data.values.map(filterCommit),
-    size: res.data.size,
-    next: res.data.next ?? null,
-  };
+  const res = await api.get(`${repoPath(repo)}/commits`, { params });
+  return paginated(res.data, filterCommit);
 }
 
 export async function listPullRequests(repo, state = "OPEN", page = 1) {
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests`,
-    { params: { state: state.toUpperCase(), pagelen: 50, page } }
-  );
-  return {
-    values: res.data.values.map(filterPR),
-    size: res.data.size,
-    next: res.data.next ?? null,
-  };
+  const res = await api.get(`${repoPath(repo)}/pullrequests`, {
+    params: { state: state.toUpperCase(), pagelen: 50, page },
+  });
+  return paginated(res.data, filterPR);
 }
 
 export async function getPullRequest(repo, prId) {
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests/${prId}`
-  );
+  const res = await api.get(`${repoPath(repo)}/pullrequests/${prId}`);
   return filterPR(res.data);
 }
 
 export async function createPullRequest(repo, title, sourceBranch, destinationBranch, description) {
-  const res = await api.post(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests`,
-    {
-      title,
-      description: description ?? "",
-      source: { branch: { name: sourceBranch } },
-      destination: { branch: { name: destinationBranch } },
-    }
-  );
+  const res = await api.post(`${repoPath(repo)}/pullrequests`, {
+    title,
+    description: description ?? "",
+    source: { branch: { name: sourceBranch } },
+    destination: { branch: { name: destinationBranch } },
+  });
   return filterPR(res.data);
 }
 
 export async function approvePullRequest(repo, prId) {
-  const res = await api.post(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests/${prId}/approve`
-  );
+  const res = await api.post(`${repoPath(repo)}/pullrequests/${prId}/approve`);
   return { approved: true, user: res.data.user?.display_name };
 }
 
 export async function mergePullRequest(repo, prId, mergeStrategy = "merge_commit") {
-  const res = await api.post(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests/${prId}/merge`,
-    { merge_strategy: mergeStrategy }
-  );
+  const res = await api.post(`${repoPath(repo)}/pullrequests/${prId}/merge`, {
+    merge_strategy: mergeStrategy,
+  });
   return filterPR(res.data);
 }
 
 export async function listPipelines(repo, page = 1) {
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pipelines/`,
-    { params: { pagelen: 50, page, sort: "-created_on" } }
-  );
-  return {
-    values: res.data.values.map(filterPipeline),
-    size: res.data.size,
-    next: res.data.next ?? null,
-  };
+  const res = await api.get(`${repoPath(repo)}/pipelines/`, {
+    params: { pagelen: 50, page, sort: "-created_on" },
+  });
+  return paginated(res.data, filterPipeline);
 }
 
 export async function getPipeline(repo, pipelineUuid) {
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pipelines/${pipelineUuid}`
-  );
+  const res = await api.get(`${repoPath(repo)}/pipelines/${pipelineUuid}`);
   return filterPipeline(res.data);
 }
 
 export async function listPrComments(repo, prId, page = 1) {
-  const res = await api.get(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests/${prId}/comments`,
-    { params: { pagelen: 50, page } }
-  );
-  return {
-    values: res.data.values.map(filterComment),
-    size: res.data.size,
-    next: res.data.next ?? null,
-  };
+  const res = await api.get(`${repoPath(repo)}/pullrequests/${prId}/comments`, {
+    params: { pagelen: 50, page },
+  });
+  return paginated(res.data, filterComment);
 }
 
 export async function addPrComment(repo, prId, content) {
-  const res = await api.post(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests/${prId}/comments`,
-    { content: { raw: content } }
-  );
+  const res = await api.post(`${repoPath(repo)}/pullrequests/${prId}/comments`, {
+    content: { raw: content },
+  });
   return filterComment(res.data);
 }
 
 export async function replyPrComment(repo, prId, parentCommentId, content) {
-  const res = await api.post(
-    `/repositories/${BITBUCKET_WORKSPACE}/${resolveRepo(repo)}/pullrequests/${prId}/comments`,
-    { content: { raw: content }, parent: { id: parentCommentId } }
-  );
+  const res = await api.post(`${repoPath(repo)}/pullrequests/${prId}/comments`, {
+    content: { raw: content },
+    parent: { id: parentCommentId },
+  });
   return filterComment(res.data);
 }
