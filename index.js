@@ -8,7 +8,7 @@ import * as bb from "./bitbucket.js";
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), ".env") });
 
-const REQUIRED_ENV = ["BITBUCKET_USERNAME", "BITBUCKET_APP_PASSWORD", "BITBUCKET_WORKSPACE"];
+const REQUIRED_ENV = ["BITBUCKET_EMAIL", "BITBUCKET_TOKEN", "BITBUCKET_WORKSPACE"];
 const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
 if (missing.length > 0) {
   console.error(`Missing required environment variables: ${missing.join(", ")}`);
