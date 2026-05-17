@@ -1,4 +1,9 @@
 import axios from "axios";
+import dotenv from "dotenv";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), ".env") });
 
 const { BITBUCKET_EMAIL, BITBUCKET_TOKEN, BITBUCKET_WORKSPACE } = process.env;
 
